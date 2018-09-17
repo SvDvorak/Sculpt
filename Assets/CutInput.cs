@@ -10,41 +10,15 @@ public class CutInput : MonoBehaviour
     private Vector3 _pos;
     public List<Vector3> _points = new List<Vector3>();
     public GameObject BaseBlock;
-    public Material TMPCutMaterial;
     private MeshFilter _baseBlockMesh;
-    private Mesh _tmpMesh;
-    private MeshFilter _tmpFilter;
 
     public void Start()
     {
         _baseBlockMesh = BaseBlock.GetComponent<MeshFilter>();
-
-        //var newMesh = new GameObject("Cut");
-        //_tmpMesh = new Mesh();
-        //_tmpMesh.vertices = new[] {new Vector3(-5, -5, 0), new Vector3(5, -5, 0), new Vector3(5, 5, 0)};
-        //_tmpMesh.triangles = new[] {0, 1, 2};
-
-        //_tmpMesh.RecalculateNormals();
-
-        //_tmpFilter = newMesh.AddComponent<MeshFilter>();
-        //_tmpFilter.mesh = _tmpMesh;
-        //var renderer = newMesh.AddComponent<MeshRenderer>();
-        //renderer.sharedMaterial = TMPCutMaterial;
     }
 
     public void Update()
     {
-        //if (Input.GetKeyDown(KeyCode.Space))
-        //{
-        //    var tmpCol = _tmpMesh.triangles.ToArray();
-        //    var tmp = tmpCol[0];
-        //    tmpCol[0] = tmpCol[1];
-        //    tmpCol[1] = tmp;
-
-        //    _tmpMesh.triangles = tmpCol;
-        //    PrintTriangles(_tmpMesh.triangles);
-        //    _tmpFilter.mesh = _tmpMesh;
-        //}
         if (Input.GetMouseButtonDown(0))
         {
             _cutting = true;
@@ -83,7 +57,7 @@ public class CutInput : MonoBehaviour
         var farPoints = _points.Select(ToWorldPointFar).ToArray();
 
         mesh.vertices = nearPoints.Concat(farPoints).ToArray();
-        //PrintPositions(mesh.vertices);
+
 
 
         var triangulator = new Triangulator();
@@ -92,54 +66,20 @@ public class CutInput : MonoBehaviour
         // Move triangle indices since far points are added after near points
         for (int i = 0; i < farTriangles.Length; i++)
         {
-            farTriangles[i] = farTriangles[i] + nearPoints.Length;
+            farTriangles[i] = farTriangles[i] + _points.Count;
         }
 
         // Should be opposite of near triangles
         FlipTriangles(farTriangles);
 
-        var numberOfPoints = _points.Count;
-        var sideIndices = numberOfPoints * 6;
-        var sides = new int[sideIndices];
-        for (var i = 0; i < sideIndices; i += 6)
-        {
-            // Take into account last looping square
-            var pIndex = i / 6;
-            // Triangle 1
-            sides[i] = pIndex;
-            sides[i + 1] = pIndex + _points.Count;
-            sides[i + 2] = (pIndex + 1) % numberOfPoints;
+        var sideTriangles = GenerateSides(nearPoints);
 
-            // Triangle 2
-            sides[i + 3] = (pIndex + 1) % numberOfPoints;
-            sides[i + 4] = pIndex + _points.Count;
-            sides[i + 5] = (pIndex + 1) % numberOfPoints + _points.Count;
-        }
+        mesh.triangles = nearTriangles.Concat(sideTriangles).Concat(farTriangles).ToArray();
 
-        var cutPlaneDirection = Vector3.Cross(nearPoints[1] - nearPoints[0], nearPoints[2] - nearPoints[0]).normalized;
-        var cutDir = cutPlaneDirection == transform.forward ? 1 : -1;
 
-        if (cutDir == 1)
-        {
-            FlipTriangles(sides);
-        }
-
-        //PrintTriangles(sides);
-        /*
-         * Reverse order in list
-         * Triangle 1: 1st near, 1st far, 2nd near
-         * Triangle 2: 2nd near, 1st far, 2nd far
-         * Triangle 3: 2nd near, 2nd far, 3rd near
-         * 
-         * 
-         */
-        mesh.triangles = nearTriangles.Concat(sides).Concat(farTriangles).ToArray();
 
         mesh.uv = mesh.vertices.Select(x => new Vector2()).ToArray();
         mesh.colors = mesh.vertices.Select(x => new Color()).ToArray();
-
-        //PrintTriangles(nearTriangles);
-        //PrintTriangles(farTriangles);
 
         mesh.RecalculateNormals();
         mesh.RecalculateTangents();
@@ -147,14 +87,45 @@ public class CutInput : MonoBehaviour
 
         var filter = newMesh.AddComponent<MeshFilter>();
         filter.mesh = mesh;
-        var renderer = newMesh.AddComponent<MeshRenderer>();
-        renderer.sharedMaterial = TMPCutMaterial;
+        newMesh.AddComponent<MeshRenderer>();
         newMesh.AddComponent<MeshCollider>().sharedMesh = mesh;
 
 
         var newBaseBlock = CSG.Subtract(BaseBlock, newMesh);
         _baseBlockMesh.sharedMesh = newBaseBlock;
 
+        Destroy(newMesh);
+    }
+
+    private int[] GenerateSides(Vector3[] nearPoints)
+    {
+        var numberOfPoints = _points.Count;
+        var sideIndices = numberOfPoints * 6;
+        var sideTriangles = new int[sideIndices];
+        for (var i = 0; i < sideIndices; i += 6)
+        {
+            // Take into account last looping square
+            var pIndex = i / 6;
+            // Triangle 1
+            sideTriangles[i] = pIndex;
+            sideTriangles[i + 1] = pIndex + _points.Count;
+            sideTriangles[i + 2] = (pIndex + 1) % numberOfPoints;
+
+            // Triangle 2
+            sideTriangles[i + 3] = (pIndex + 1) % numberOfPoints;
+            sideTriangles[i + 4] = pIndex + _points.Count;
+            sideTriangles[i + 5] = (pIndex + 1) % numberOfPoints + _points.Count;
+        }
+
+        var cutPlaneDirection = Vector3.Cross(nearPoints[1] - nearPoints[0], nearPoints[2] - nearPoints[0]).normalized;
+        var cutDir = cutPlaneDirection == transform.forward ? 1 : -1;
+
+        if (cutDir == 1)
+        {
+            FlipTriangles(sideTriangles);
+        }
+
+        return sideTriangles;
     }
 
     private static void FlipTriangles(int[] triangles)
