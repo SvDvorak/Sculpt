@@ -1,56 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Parabox.CSG;
 using UnityEngine;
 
-public class CutInput : MonoBehaviour
+public class Cutter: MonoBehaviour
 {
-    private bool _cutting;
-    private Vector3 _pos;
-    public List<Vector3> _points = new List<Vector3>();
-    public GameObject BaseBlock;
+    private List<Vector3> _points;
     private MeshFilter _baseBlockMesh;
+    public GameObject BaseBlock;
 
     public void Start()
     {
         _baseBlockMesh = BaseBlock.GetComponent<MeshFilter>();
     }
 
-    public void Update()
+    public void PerformCut(List<Vector3> points)
     {
-        if (Input.GetMouseButtonDown(0))
-        {
-            _cutting = true;
-            SetNewPoint();
-        }
+        _points = points;
 
-        if (_cutting && Input.GetMouseButtonUp(0))
-        {
-            _cutting = false;
-            if(_points.Count > 3)
-                PerformCut();
-            _points.Clear();
-        }
-
-        if (_cutting)
-        {
-            var posDelta = Input.mousePosition - _pos;
-            if (posDelta.magnitude > 100)
-            {
-                SetNewPoint();
-            }
-        }
-    }
-
-    private void SetNewPoint()
-    {
-        _pos = Input.mousePosition;
-        _points.Add(_pos);
-    }
-
-    private void PerformCut()
-    {
         var newMesh = new GameObject("Cut");
         var mesh = new Mesh();
         var nearPoints = _points.Select(ToWorldPointNear).ToArray();
